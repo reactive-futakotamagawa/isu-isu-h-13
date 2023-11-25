@@ -1,0 +1,4 @@
+vars/secrets.yml
+.vscode/
+.tool-versions
+bin/ast

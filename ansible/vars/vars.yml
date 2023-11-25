@@ -1,0 +1,43 @@
+---
+## 事前に設定する部分
+webhook_url: https://discord.com/api/webhooks/1155468717807915128/U19yMbPy3zv4k5gpBsg3Lvezswz47bG2jrxUDhIXKheMH0lfonsPWt3rOJ9FdLK_Koda
+
+github:
+  repo_url: git@github.com:ikura-hamu/isucon-ansible-test.git
+  repo_name: isucon-ansible-test
+
+deploy_branch: main
+
+## 当日サーバーに入って設定する部分
+
+project_root: /home/isucon/private_isu
+
+nginx:
+  conf_dir:
+    original: /etc/nginx
+    repo: "{{ project_root }}/{{ server_id }}/etc/nginx"
+  access_log_file: /var/log/nginx/access.log
+  service_name: nginx
+
+db:
+  conf_dir:
+    original: /etc/mysql
+    repo: "{{ project_root }}/{{ server_id }}/etc/mysql"
+  slow_log_file: /var/log/mysql/mysql-slow.log
+  service_name: mysql
+
+app:
+  service_name: isu-go
+  dir: "{{ project_root }}/webapp/golang"
+  bin: "{{ project_root }}/webapp/golang/app"
+
+go_path: "/usr/local/go/bin/go"
+
+env_file: 
+  original: /home/isucon/env.sh
+  repo: "{{ project_root }}/{{ server_id }}/env.sh"
+
+systemd:
+  conf_dir:
+    original: /etc/systemd/system
+    repo: "{{ project_root }}/{{ server_id }}/etc/systemd/system"

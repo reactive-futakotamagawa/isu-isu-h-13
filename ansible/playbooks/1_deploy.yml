@@ -1,0 +1,152 @@
+---
+- hosts: all
+  name: "Pull"
+  remote_user: isucon
+  vars_files:
+    - "../vars/vars.yml"
+  tasks:
+    - name: "Pull"
+      ansible.builtin.git:
+        repo: "{{ github.repo_url }}"
+        dest: "{{ project_root }}"
+        version: "{{ deploy_branch }}"
+        force: true
+
+    - name: "Get last commit"
+      ansible.builtin.command:
+        cmd: "git log --pretty=oneline -n 1"
+        chdir: "{{ project_root }}"
+      register: last_commit
+      changed_when: false
+
+    - name: "Send last commit"
+      ansible.builtin.uri:
+        url: "{{ webhook_url }}"
+        method: POST
+        body_format: json
+        body: '{"content": "**Deploying...**:\nbranch: `{{ deploy_branch }}`\ncommit: `{{ last_commit.stdout }}`"}'
+        status_code:
+          - 204
+      changed_when: false
+
+- hosts: all
+  name: "Setup systemd conf"
+  remote_user: isucon
+  vars_files:
+    - "../vars/vars.yml"
+  tasks:
+    - name: "Set systemd conf files"
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ systemd.conf_dir.repo }}/"
+        dest: "{{ systemd.conf_dir.original }}"
+        mode: "755"
+      become: true
+
+    - name: "Daemon reload"
+      ansible.builtin.systemd:
+        daemon_reload: true
+      become: true
+
+- hosts: ungrouped:db
+  name: "Deploy DB"
+  remote_user: isucon
+  vars_files:
+    - "../vars/vars.yml"
+  tasks:
+    - name: "Set DB conf file"
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ db.conf_dir.repo }}/"
+        dest: "{{ db.conf_dir.original }}"
+        mode: "755"
+      become: true
+
+    - name: "Restart DB"
+      ansible.builtin.systemd:
+        name: "{{ db.service_name }}"
+        state: restarted
+        daemon_reload: true
+      become: true
+
+    - name: "Check slow log file exists"
+      ansible.builtin.stat:
+        path: "{{ db.slow_log_file }}"
+      register: slow_log_file
+      become: true
+
+    - name: "Truncate DB slow log"
+      ansible.builtin.command:
+        cmd: "truncate -s 0 -c {{ db.slow_log_file }}"
+      become: true
+      changed_when: false
+      when: slow_log_file.stat.exists
+
+    - name: "Change DB slow log permission"
+      ansible.builtin.file:
+        path: "{{ db.slow_log_file }}"
+        mode: "777"
+      become: true
+      changed_when: false
+      when: slow_log_file.stat.exists
+
+- hosts: ungrouped:proxy
+  name: "Deploy proxy"
+  remote_user: isucon
+  vars_files:
+    - "../vars/vars.yml"
+  tasks:
+    - name: "Set proxy conf file"
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ nginx.conf_dir.repo }}/"
+        dest: "{{ nginx.conf_dir.original }}"
+        mode: "755"
+      become: true
+
+    - name: "Restart Proxy"
+      ansible.builtin.systemd:
+        name: "{{ nginx.service_name }}"
+        state: restarted
+        daemon_reload: true
+      become: true
+
+    - name: "Check slow log file exists"
+      ansible.builtin.stat:
+        path: "{{ nginx.access_log_file }}"
+      register: access_log_file
+      become: true
+
+    - name: "Truncate access log"
+      ansible.builtin.command:
+        cmd: "truncate -s 0 -c {{ nginx.access_log_file }}"
+      become: true
+      changed_when: false
+      when: access_log_file.stat.exists
+
+    - name: "Change access log permission"
+      ansible.builtin.file:
+        path: "{{ nginx.access_log_file }}"
+        mode: "777"
+      become: true
+      changed_when: false
+      when: access_log_file.stat.exists
+
+- hosts: ungrouped:app
+  name: "Deploy app"
+  remote_user: isucon
+  vars_files:
+    - "../vars/vars.yml"
+  tasks:
+    - name: "Build"
+      ansible.builtin.command:
+        cmd: "{{ go_path }} build -o {{ app.bin }}"
+        chdir: "{{ app.dir }}"
+      changed_when: false
+
+    - name: "Restart app"
+      ansible.builtin.systemd:
+        name: "{{ app.service_name }}"
+        state: restarted
+        daemon_reload: true
+      become: true

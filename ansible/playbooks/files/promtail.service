@@ -1,0 +1,8 @@
+[Unit]
+Description=Promtail Agent
+
+[Service]
+ExecStart=/opt/promtail/bin/promtail -config.file=/opt/promtail/config/promtail.yml
+
+[Install]
+WantedBy=multi-user.target

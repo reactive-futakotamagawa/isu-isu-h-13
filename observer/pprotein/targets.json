@@ -1,0 +1,26 @@
+[
+  {
+    "Type": "pprof",
+    "Label": "s1",
+    "URL": "http://s1:8888/debug/pprof/profile",
+    "Duration": 60
+  },
+  {
+    "Type": "httplog",
+    "Label": "s1",
+    "URL": "http://s1:8888/debug/log/httplog",
+    "Duration": 60
+  },
+  {
+    "Type": "slowlog",
+    "Label": "s1",
+    "URL": "http://s1:8888/debug/log/slowlog",
+    "Duration": 60
+  },
+  {
+    "Type": "pt",
+    "Label": "s1",
+    "URL": "http://s1:8888/debug/log/slowlog",
+    "Duration": 60
+  }
+]

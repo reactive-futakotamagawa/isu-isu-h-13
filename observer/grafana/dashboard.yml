@@ -1,0 +1,20 @@
+# # config file version
+apiVersion: 1
+
+providers:
+- name: 'ISUCON'
+  orgId: 1
+  folder:
+  folderUid: ''
+  type: file
+  options:
+    path: /var/lib/grafana/dashboards/isucon.json
+    foldersFromFilesStructure: false
+- name: 'Log'
+  orgId: 1
+  folder:
+  folderUid: ''
+  type: file
+  options:
+    path: /var/lib/grafana/dashboards/log.json
+    foldersFromFilesStructure: false

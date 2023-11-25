@@ -1,0 +1,74 @@
+version: '3'
+
+services:
+  prometheus:
+    image: prom/prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    restart: always
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana:/var/lib/grafana
+      - ./grafana/datasource.yml:/etc/grafana/provisioning/datasources/datasource.yml
+      - ./grafana/dashboard.yml:/etc/grafana/provisioning/dashboards/dashborad.yml
+      - ./grafana/isucon.json:/var/lib/grafana/dashboards/isucon.json
+      - ./grafana/log.json:/var/lib/grafana/dashboards/log.json
+    environment:
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
+  pprotein:
+    build: ./pprotein
+    ports:
+      - "9000:9000"
+    volumes:
+      - pprotein:/go/src/pprotein/data
+    env_file:
+      - ./pprotein/env.sh
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/virtual-host.conf:/etc/nginx/conf.d/virtual-host.conf
+      - ./nginx/index.html:/usr/share/nginx/html/index.html
+      - ./nginx/.htpasswd:/etc/nginx/.htpasswd
+    restart: always
+  loki:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: always
+
+#ポートフォワーディング用のコンテナ
+  s1:
+    build: ./tunnel
+    volumes:
+      - ./tunnel/config:/etc/ssh/ssh_config:ro
+    command: -N s1
+    restart: always
+  s2:
+    build: ./tunnel
+    volumes:
+      - ./tunnel/config:/etc/ssh/ssh_config:ro
+    command: -N s2
+    restart: always
+  s3:
+    build: ./tunnel
+    volumes:
+      - ./tunnel/config:/etc/ssh/ssh_config:ro
+    command: -N s3
+    restart: always
+
+
+volumes:
+  grafana:
+  pprotein:

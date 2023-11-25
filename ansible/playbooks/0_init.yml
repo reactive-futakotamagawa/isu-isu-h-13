@@ -1,0 +1,312 @@
+---
+- hosts: all
+  name: "Install tools"
+  remote_user: isucon
+  vars_files:
+    - ../vars/vars.yml
+  tasks:
+    - name: "Update and upgrade"
+      become: true
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: true
+    - name: "Update and upgrade"
+      become: true
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: true
+
+    - name: "Install tools"
+      become: true
+      ansible.builtin.apt:
+        name:
+          - git
+          - unzip
+          - dstat
+          - tree
+          - make
+    - name: "Install tools"
+      become: true
+      ansible.builtin.apt:
+        name:
+          - git
+          - unzip
+          - dstat
+          - tree
+          - make
+
+    - name: "Download promtail"
+      ansible.builtin.get_url:
+        url: "https://github.com/grafana/loki/releases/download/v2.8.6/promtail-linux-amd64.zip"
+        dest: "/tmp/promtail.zip"
+        mode: "0777"
+
+    - name: "Make promtail directory"
+      ansible.builtin.file:
+        path: "/opt/promtail"
+        state: directory
+        mode: "0777"
+      become: true
+
+    - name: "Make promtail bin directory"
+      ansible.builtin.file:
+        path: "/opt/promtail/bin"
+        state: directory
+        mode: "0777"
+      become: true
+
+    - name: "Make promtail config directory"
+      ansible.builtin.file:
+        path: "/opt/promtail/config"
+        state: directory
+        mode: "0777"
+      become: true
+
+    - name: "Unzip promtail"
+      ansible.builtin.unarchive:
+        src: "/tmp/promtail.zip"
+        dest: "/opt/promtail/bin"
+        remote_src: true
+        mode: "0777"
+
+    - name: "Change promtail binary name"
+      ansible.builtin.command:
+        cmd: "mv /opt/promtail/bin/promtail-linux-amd64 /opt/promtail/bin/promtail"
+        creates: "/opt/promtail/bin/promtail"
+      become: true
+
+    - name: "Set promtail config"
+      ansible.builtin.copy:
+        remote_src: false
+        src: "promtail.yml"
+        dest: "/opt/promtail/config/promtail.yml"
+        mode: "0777"
+
+    - name: "Setup promtail"
+      ansible.builtin.lineinfile:
+        path: "/opt/promtail/config/promtail.yml"
+        regexp: "host:"
+        line: "      host: {{ server_id }}"
+        state: present
+
+    - name: "Setup promtail service"
+      ansible.builtin.copy:
+        remote_src: false
+        src: "promtail.service"
+        dest: "/etc/systemd/system/promtail.service"
+        mode: "0777"
+      become: true
+
+    - name: "Start promtail system"
+      ansible.builtin.systemd:
+        daemon_reload: true
+        name: promtail
+        enabled: true
+        state: started
+      become: true
+
+- hosts: all
+  name: "Setup git"
+  remote_user: isucon
+  vars_files:
+    - ../vars/vars.yml
+    - ../vars/secrets.yml
+  tasks:
+    - name: "Generate ssh key"
+      ansible.builtin.shell:
+        cmd: |
+          ssh-keygen -t ed25519 -f /home/isucon/.ssh/id_ed25519 -N ""
+        creates: /home/isucon/.ssh/id_ed25519
+
+    - name: "Cat Publickey"
+      ansible.builtin.command: cat /home/isucon/.ssh/id_ed25519.pub
+      register: ssh_pubkey
+      changed_when: false
+
+    - name: "Set git config name"
+      community.general.git_config:
+        name: user.name
+        value: "isucon_{{ server_id }}"
+        scope: global
+
+    - name: "Set git config email"
+      community.general.git_config:
+        name: user.email
+        value: "isucon@example.com"
+        scope: global
+
+    - name: "Set GitHub key"
+      community.general.github_deploy_key:
+        owner: "{{ github_secrets.repo_owner }}"
+        repo: "{{ github.repo_name }}"
+        name: "isucon_{{ server_id }}"
+        key: "{{ ssh_pubkey.stdout }}"
+        token: "{{ github_secrets.token }}"
+        read_only: false
+
+    - name: "Execute git init"
+      ansible.builtin.shell:
+        cmd: "cd {{ project_root }} && git init && git remote add origin {{ github.repo_url }} "
+        creates: "{{ project_root }}/.git"
+
+    - name: "Pull"
+      ansible.builtin.git:
+        repo: "{{ github.repo_url }}"
+        dest: "{{ project_root }}"
+        accept_newhostkey: true
+        force: true
+        version: "{{ deploy_branch }}"
+
+- hosts: all
+  name: "Setup repository"
+  remote_user: isucon
+  vars_files:
+    - ../vars/vars.yml
+    - ../vars/secrets.yml
+  tasks:
+    - name: "Copy nginx conf"
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ nginx.conf_dir.original }}/"
+        dest: "{{ nginx.conf_dir.repo }}"
+        mode: "777"
+        directory_mode: "777"
+      become: true
+
+    - name: "Copy mysql conf"
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ db.conf_dir.original }}/"
+        dest: "{{ db.conf_dir.repo }}"
+        mode: "777"
+        directory_mode: "777"
+      become: true
+
+    - name: "Copy systemd config directory"
+      ansible.builtin.copy:
+        remote_src: true
+        src: "{{ systemd.conf_dir.original }}/"
+        dest: "{{ systemd.conf_dir.repo }}"
+        mode: "777"
+        directory_mode: "777"
+      become: true
+
+    - name: "Change permission of copied nginx conf files"
+      ansible.builtin.file:
+        path: "{{ nginx.conf_dir.repo }}"
+        mode: "777"
+        recurse: true
+      become: true
+
+    - name: "Change permission of copied DB conf files"
+      ansible.builtin.file:
+        path: "{{ db.conf_dir.repo }}"
+        mode: "777"
+        recurse: true
+      become: true
+
+    - name: "Change permission of copied systemd conf files"
+      ansible.builtin.file:
+        path: "{{ systemd.conf_dir.repo }}"
+        mode: "777"
+        recurse: true
+      become: true
+
+    - name: "Move env file"
+      ansible.builtin.command:
+        cmd: "mv {{ env_file.original }} {{ env_file.repo }}"
+        creates: "{{ env_file.repo }}"
+      become: true
+
+    - name: "Symlink env file"
+      ansible.builtin.file:
+        src: "{{ env_file.repo }}"
+        dest: "{{ env_file.original }}"
+        state: link
+      become: true
+
+    - name: "Add env var for pprotein"
+      ansible.builtin.lineinfile:
+        path: "{{ env_file.repo }}"
+        state: present
+        line: "PPROTEIN_GIT_REPOSITORY={{ project_root }}"
+
+- hosts: all
+  name: "Check servers spec"
+  remote_user: isucon
+  vars_files: ../vars/vars.yml
+  tasks:
+    - name: "Check CPU"
+      ansible.builtin.shell:
+        cmd: "set -o pipefail && lscpu | grep -e Architecture -e '^CPU(s)' | grep '^[^N]' | tr -s ' ' '`' | tr '\n' '#' | sed -e 's/#/`, /g'"
+        executable: /bin/bash
+      register: cpu_info
+      changed_when: false
+
+    - name: "Check memory"
+      ansible.builtin.shell:
+        cmd: "set -o pipefail && cat /proc/meminfo | grep MemTotal"
+        executable: /bin/bash
+      register: memory_info
+      changed_when: false
+
+    - name: "Send result"
+      ansible.builtin.uri:
+        url: "{{ webhook_url }}"
+        method: POST
+        body_format: json
+        body: '{"content": "**{{ server_id }}**:\n **CPU**: {{ cpu_info.stdout }}\n **Mem**: {{ memory_info.stdout }}"}'
+        status_code:
+          - 204
+      changed_when: false
+
+- hosts: all
+  name: "Set key for observer"
+  remote_user: isucon
+  tasks:
+    - name: "Set key"
+      ansible.posix.authorized_key:
+        user: isucon
+        key: "{{ lookup('file', 'id_ed25519.pub') }}"
+        state: present
+
+- hosts: all
+  name: "Install exporters"
+  remote_user: isucon
+  roles:
+    - prometheus.prometheus.node_exporter
+    - prometheus.prometheus.systemd_exporter
+  become: true
+
+- hosts: all
+  name: "Touch log files"
+  remote_user: isucon
+  vars_files: ../vars/vars.yml
+  tasks:
+    - name: "Touch nginx log"
+      ansible.builtin.file:
+        path: "{{ nginx.access_log_file }}"
+        state: touch
+        mode: "777"
+      become: true
+
+    - name: "Touch mysql log"
+      ansible.builtin.file:
+        path: "{{ db.slow_log_file }}"
+        state: touch
+        mode: "777"
+      become: true
+
+    - name: "Change permission of nginx log folder"
+      ansible.builtin.file:
+        path: "/var/log/nginx"
+        mode: "777"
+        recurse: true
+      become: true
+
+    - name: "Change permission of slow log folder"
+      ansible.builtin.file:
+        path: "/var/log/mysql"
+        mode: "777"
+        recurse: true
+      become: true

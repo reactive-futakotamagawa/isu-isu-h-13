@@ -1,0 +1,21 @@
+server:
+  http_listen_port: 0
+  grpc_listen_port: 0
+  log_level: error
+
+positions:
+  filename: /tmp/positions.yaml
+
+client:
+  url: http://isucon.ikura-hamu.work:3100/loki/api/v1/push
+
+scrape_configs:
+- job_name: journall
+  journal:
+    max_age: 8h
+    labels:
+      job: systemd-journal
+      host: s1
+  relabel_configs:
+    - source_labels: ['__journal__systemd_unit']
+      target_label: 'unit'

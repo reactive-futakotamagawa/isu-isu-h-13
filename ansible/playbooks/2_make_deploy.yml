@@ -1,0 +1,87 @@
+---
+- hosts: all
+  name: "Pull"
+  remote_user: isucon
+  vars_files:
+    - "../vars/vars.yml"
+  tasks:
+    - name: "Pull"
+      ansible.builtin.git:
+        repo: "{{ github.repo_url }}"
+        dest: "{{ project_root }}"
+        version: "{{ deploy_branch }}"
+        force: true
+
+- hosts: ungrouped
+  name: "Deploy all"
+  remote_user: isucon
+  vars_files:
+    - "../vars/vars.yml"
+  tasks:
+    - name: "Run make all"
+      community.general.make:
+        chdir: "{{ project_root }}"
+        target: all
+        params:
+          SERVER_ID: "{{ server_id }}"
+          DB_CONF_REPO: "{{ db.conf_dir.repo }}"
+          DB_CONF_ORIGINAL: "{{ db.conf_dir.original }}"
+          DB_SERVICE: "{{ db.service_name }}"
+          SLOW_LOG_FILE: "{{ db.slow_log_file }}"
+          NGINX_CONF_REPO: "{{ nginx.conf_dir.repo }}"
+          NGINX_CONF_ORIGINAL: "{{ nginx.conf_dir.original }}"
+          NGINX_SERVICE: "{{ nginx.service_name }}"
+          ACCESS_LOG_FILE: "{{ nginx.access_log_file }}"
+          APP_SERVICE: "{{ app.service_name }}"
+          APP_DIR: "{{ app.dir }}"
+          APP_BIN: "{{ app.bin }}"
+
+- hosts: db
+  name: "Deploy DB"
+  remote_user: isucon
+  vars_files:
+    - "../vars/vars.yml"
+  tasks:
+    - name: "Run make db"
+      community.general.make:
+        chdir: "{{ project_root }}"
+        target: db
+        params:
+          SERVER_ID: "{{ server_id }}"
+          DB_CONF_REPO: "{{ db.conf_dir.repo }}"
+          DB_CONF_ORIGINAL: "{{ db.conf_dir.original }}"
+          DB_SERVICE: "{{ db.service_name }}"
+          SLOW_LOG_FILE: "{{ db.slow_log_file }}"
+
+- hosts: proxy
+  name: "Deploy proxy"
+  remote_user: isucon
+  vars_files:
+    - "../vars/vars.yml"
+  tasks:
+    - name: "Run make proxy"
+      community.general.make:
+        chdir: "{{ project_root }}"
+        target: proxy
+        params:
+          SERVER_ID: "{{ server_id }}"
+          NGINX_CONF_REPO: "{{ nginx.conf_dir.repo }}"
+          NGINX_CONF_ORIGINAL: "{{ nginx.conf_dir.original }}"
+          NGINX_SERVICE: "{{ nginx.service_name }}"
+          ACCESS_LOG_FILE: "{{ nginx.access_log_file }}"
+
+- hosts: app
+  name: "Deploy app"
+  remote_user: isucon
+  vars_files:
+    - "../vars/vars.yml"
+  tasks:
+    - name: "Run make app"
+      community.general.make:
+        chdir: "{{ project_root }}"
+        target: app
+        params:
+          SERVER_ID: "{{ server_id }}"
+          APP_SERVICE: "{{ app.service_name }}"
+          APP_DIR: "{{ app.dir }}"
+          APP_BIN: "{{ app.bin }}"
